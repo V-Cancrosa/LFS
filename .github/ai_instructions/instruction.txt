@@ -1,1 +1,2 @@
-
+# Example:
+# replace: src/example.py|old_value|new_value
