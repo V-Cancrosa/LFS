@@ -27,11 +27,75 @@ const TYPES = [
   { id: 'notatka', label: 'Notatki', one: 'Notatka', icon: '✎', tpl: '' },
 ];
 const TYPE = Object.fromEntries(TYPES.map(t => [t.id, t]));
+// ---------- system Fallout: Equestria RPG (podręcznik v1.22) ----------
+const BOOK_FILE = 'Fallout Equestria V1.22 [POST].pdf';
 const SPECIAL = ['S', 'P', 'E', 'C', 'I', 'A', 'L'];
+// [skrót, nazwa polska, skróty angielskie]
+const ATTRS = [
+  ['S', 'Siła', 'str', 'strength'], ['P', 'Percepcja', 'per', 'perception'], ['E', 'Wytrzymałość', 'end', 'endurance'],
+  ['C', 'Charyzma', 'cha', 'charisma'], ['I', 'Inteligencja', 'int', 'intelligence'], ['A', 'Zwinność', 'agi', 'agility'],
+  ['L', 'Szczęście', 'luck', 'lck'],
+];
+// Umiejętności (str. 58–61): [nazwa polska, nazwa z podręcznika, atrybut, rasowa]
+const SKILLS = [
+  ['Walka wręcz', 'Melee', 'S'], ['Kopanie', 'Dig', 'S', true],
+  ['Broń energetyczna', 'Energy Weapons', 'P'], ['Materiały wybuchowe', 'Explosives', 'P'], ['Otwieranie zamków', 'Lockpicking', 'P'],
+  ['Ciężka broń', 'Big Guns', 'E'], ['Przetrwanie', 'Survival', 'E'], ['Walka bez broni', 'Unarmed', 'E'],
+  ['Handel', 'Mercantile', 'C'], ['Perswazja', 'Speechcraft', 'C'],
+  ['Magia', 'Magic', 'I', true], ['Medycyna', 'Medicine', 'I'], ['Naprawa', 'Repair', 'I'], ['Nauka', 'Science', 'I'],
+  ['Latanie', 'Flight', 'A', true], ['Lekka broń', 'Small Guns', 'A'], ['Skradanie', 'Sneak', 'A'],
+];
+// Stopnie trudności MFD, od najłatwiejszego (str. 6–7).
+const MFD_STEPS = [['2', 2], ['1½', 1.5], ['1', 1], ['¾', 0.75], ['½', 0.5], ['¼', 0.25], ['1/10', 0.1]];
 const DEFAULT_STATS = [['S', '5'], ['P', '5'], ['E', '5'], ['C', '5'], ['I', '5'], ['A', '5'], ['L', '5'],
-  ['HP', ''], ['AP', ''], ['DT', ''], ['Sekwencja', '']];
-const HP_KEYS = ['hp', 'pż', 'pz', 'punkty życia'];
-const INIT_KEYS = ['sekwencja', 'inicjatywa', 'init', 'sequence', 'seq'];
+  ['Poziom', '1'], ['Rana', '10'], ['DT', '0']];
+const DPW_KEYS = ['rana', 'obrażenia na ranę', 'dpw', 'damage/wound', 'damage per wound'];
+const DT_KEYS = ['dt'];
+const SATS_KEYS = ['sats'];
+
+function attrOf(key) {
+  const k = String(key).trim().toLowerCase();
+  return ATTRS.find(a => a[0].toLowerCase() === k || a.slice(1).some(x => x.toLowerCase() === k)) || null;
+}
+function skillOf(key) {
+  const k = String(key).trim().toLowerCase();
+  return SKILLS.find(s => s[0].toLowerCase() === k || s[1].toLowerCase() === k) || null;
+}
+const num = v => { const n = parseInt(v, 10); return isNaN(n) ? null : n; };
+const floor5 = n => Math.floor(n / 5) * 5;
+// Wartości atrybutów wpisu jako { S: 5, P: 6, ... } (tylko liczby).
+function attrValues(stats) {
+  const out = {};
+  for (const [k, v] of stats || []) { const a = attrOf(k); if (a && num(v) !== null) out[a[0]] = num(v); }
+  return out;
+}
+// TN przy MFD 1: atrybut ×10, umiejętność = ranga + ½ z (atrybut ×10) (str. 13).
+function statTN(key, value, attrs) {
+  const n = num(value);
+  if (n === null) return null;
+  if (attrOf(key)) return n * 10;
+  const s = skillOf(key);
+  if (s && attrs[s[2]] !== undefined) return n + attrs[s[2]] * 5;
+  return null;
+}
+// Wartości pochodne z karty postaci (str. 13–19, 50–53, 436).
+function derived(stats) {
+  const a = attrValues(stats);
+  const out = [];
+  if (a.A !== undefined) {
+    const move = floor5(2.5 * a.A);
+    out.push(['SATS (maks.)', 40 + 5 * a.A, '40 + 5×AGI, odnawia 5/rundę']);
+    out.push(['Ruch', move + ' ft', '2,5×AGI na akcję, bieg ×3']);
+    out.push(['Skradanie', floor5(move / 2) + ' ft', 'ruch / 2']);
+    out.push(['Lot / kopanie', 5 * a.A + ' ft', '5×AGI na akcję']);
+    out.push(['Inicjatywa ±', Math.floor(a.A * 10 / 4), 'k100 ± AGI MFD ¼, niższy działa pierwszy']);
+  }
+  if (a.S !== undefined) out.push(['Udźwig', 100 + 10 * a.S, '100 + 10×STR']);
+  if (a.E !== undefined) out.push(['Rany: śmierć', a.E, 'END ran w głowę/tułów; ½ END okalecza lokację']);
+  if (a.L !== undefined) out.push(['Karty szczęścia', Math.max(3, Math.ceil(a.L / 2) + 2), '½ LUCK (w górę) + 2, min. 3']);
+  return out;
+}
+function mfdLabel(m) { return (MFD_STEPS.find(s => s[1] === m) || [String(m)])[0]; }
 
 // ---------- narzędzia pomocnicze ----------
 const $ = (s, root = document) => root.querySelector(s);
@@ -133,7 +197,7 @@ function backlinks(e) {
   return entries().filter(o => o.id !== e.id && re.test(o.body)).sort(byTitle);
 }
 function snippet(e, len = 140) {
-  return e.body.replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (m, a, b) => b || a)
+  return e.body.replace(/\[\[([^\]|]+)\|?([^\]]*)\]\]/g, (m, a, b) => b || a.replace(/^\s*(?:str|s|p|pdf|page)\.?\s*:?\s*(\d+)\s*$/i, 'str. $1').replace(/^\s*(?:r|rzut|roll)\s*:\s*/i, ''))
     .replace(/[#*>`_~|-]/g, ' ').replace(/\s+/g, ' ').replace(/ ([.,:;!?])/g, '$1').trim().slice(0, len);
 }
 
@@ -176,7 +240,18 @@ function isBlockStart(line, next) {
     RE_LIST.test(line) || (/^\s*\|/.test(line) && next !== undefined && RE_TABLE_SEP.test(next));
 }
 function splitRow(line) {
-  return line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+  // Dzieli wiersz tabeli na komórki, ignorując „|” wewnątrz linków [[cel|tekst]].
+  const inner = line.trim().replace(/^\|/, '').replace(/\|$/, '');
+  const cells = [];
+  let cur = '', depth = 0;
+  for (let i = 0; i < inner.length; i++) {
+    if (inner.startsWith('[[', i)) { depth++; cur += '[['; i++; continue; }
+    if (inner.startsWith(']]', i) && depth) { depth--; cur += ']]'; i++; continue; }
+    if (inner[i] === '|' && !depth) { cells.push(cur.trim()); cur = ''; continue; }
+    cur += inner[i];
+  }
+  cells.push(cur.trim());
+  return cells;
 }
 
 function md(src, off = 0) {
@@ -330,9 +405,24 @@ function renderTree() {
 // ---------- widok wpisu ----------
 function statBlock(e) {
   if (!e.stats || !e.stats.length) return '';
-  return '<div class="statblock">' + e.stats.map(([k, v]) =>
-    `<div class="stat${SPECIAL.includes(k) ? ' special' : ''}"><div class="k" title="${esc(k)}">${esc(k)}</div><div class="v">${esc(v || '–')}</div></div>`
-  ).join('') + '</div>';
+  const attrs = attrValues(e.stats);
+  const cell = ([k, v]) => {
+    const a = attrOf(k), s = skillOf(k);
+    const tn = statTN(k, v, attrs);
+    const name = a ? a[1] : s ? `${s[0]} (${s[1]}) · ${ATTRS.find(x => x[0] === s[2])[1]}` : k;
+    const tip = tn !== null ? `${name}: TN ${tn} przy MFD 1 — kliknij, aby wykonać test` : name;
+    return `<div class="stat${a ? ' special' : ''}${tn !== null ? ' rollable' : ''}"${tn !== null ? ` data-tn="${tn}" data-name="${esc(k)}"` : ''} title="${esc(tip)}">
+      <div class="k">${esc(k)}</div><div class="v">${esc(v || '–')}</div>${tn !== null && !a ? `<div class="tn">TN ${tn}</div>` : a && tn !== null ? `<div class="tn">${tn}</div>` : ''}</div>`;
+  };
+  const attrRows = e.stats.filter(([k]) => attrOf(k));
+  const skillRows = e.stats.filter(([k]) => skillOf(k));
+  const other = e.stats.filter(([k]) => !attrOf(k) && !skillOf(k));
+  const der = derived(e.stats);
+  let html = '';
+  if (attrRows.length || other.length) html += '<div class="statblock">' + attrRows.map(cell).join('') + other.map(cell).join('') + '</div>';
+  if (skillRows.length) html += '<div class="statblock skills">' + skillRows.map(cell).join('') + '</div>';
+  if (der.length) html += '<div class="derived">' + der.map(([k, v, t]) => `<span title="${esc(t)}"><b>${esc(v)}</b> ${esc(k)}</span>`).join('') + '</div>';
+  return html;
 }
 
 function renderEntry(e) {
@@ -484,7 +574,8 @@ function renderEditor() {
         <label class="check"><input type="checkbox" id="f-hasstats"${e.stats ? ' checked' : ''}> Blok statystyk (S.P.E.C.I.A.L., HP itd.)</label>
         <div id="stats-wrap" ${e.stats ? '' : 'hidden'}>
           <div class="stats-editor" id="stats-editor">${stats.map(([k, v]) => statRowHtml(k, v)).join('')}
-            <button type="button" id="stat-add">+ pole</button></div>
+            <button type="button" id="stat-add">+ pole</button>
+            <button type="button" id="stat-skills" title="Dodaje brakujące umiejętności z rangą startową 2 + 2×atrybut + ½ LUCK (str. 62). Umiejętności wiodące: dodaj ręcznie +15.">+ umiejętności</button></div>
         </div>
       </div>
     </div>
@@ -598,6 +689,8 @@ function renderHome() {
   $('#main').innerHTML = `
     <input class="home-title" id="campaign-name" value="${esc(db.campaign)}" title="Kliknij, aby zmienić nazwę kampanii">
     <div class="chips">${TYPES.map(t => `<span class="chip" data-new-type="${t.id}" title="Nowy: ${t.one}">${t.icon} ${t.label}<b>${all.filter(e => e.type === t.id).length}</b></span>`).join('')}</div>
+    ${FOE_REFERENCE.some(r => findByTitle(r.title)) ? '' : `<div class="panel callout"><h3>📖 Podręcznik FoE v1.22</h3>
+      Ta kampania nie ma jeszcze ściąg z podręcznika (rzuty i MFD, walka, rany, losowe spotkania, indeks bestiariusza). <button id="add-reference2" class="primary">Dodaj ściągi</button></div>`}
     <div class="panel"><h3>📌 Przypięte</h3>${pinned.length ? '<div class="cards">' + pinned.map(card).join('') + '</div>' : '<span class="ctx">Przypnij najważniejsze wpisy (np. opis kampanii, najbliższą sesję) przyciskiem 📌 na ich stronie.</span>'}</div>
     <div class="home-cols">
       <div class="panel"><h3>◷ Sesje</h3>${list(sessions)}</div>
@@ -610,7 +703,8 @@ function renderHome() {
         <tr><td><code>[[Nazwa wpisu]]</code></td><td>link do innego wpisu. Czerwony link oznacza, że wpis jeszcze nie istnieje. Kliknięcie go utworzy.</td></tr>
         <tr><td><code>[[Nazwa|inny tekst]]</code></td><td>link z własnym tekstem</td></tr>
         <tr><td><code>[[str:42]]</code></td><td>otwiera wczytany podręcznik PDF na stronie 42</td></tr>
-        <tr><td><code>[[r:2k6+3]]</code></td><td>klikalny rzut kośćmi, np. atak NPC: <code>[[r:2k10+4|Strzelba]]</code></td></tr>
+        <tr><td><code>[[r:2k6+3]]</code></td><td>klikalny rzut kośćmi, np. obrażenia broni NPC: <code>[[r:2k10+4|Strzelba]]</code></td></tr>
+        <tr><td><b>Karta statystyk</b></td><td>atrybuty i umiejętności pokazują TN (MFD 1); kliknięcie wykonuje test k100 z MFD i modyfikatorem ustawionymi w zakładce 🎲. Pod kartą są wartości pochodne (SATS, ruch, udźwig…).</td></tr>
         <tr><td><code>- [ ] scena</code></td><td>lista zadań: w widoku wpisu można ją odhaczać w trakcie sesji</td></tr>
         <tr><td><code>#tag</code></td><td>tag. Kliknięcie go filtruje listę po lewej</td></tr>
         <tr><td><kbd>Ctrl+K</kbd></td><td>szybkie przejście do dowolnego wpisu (albo utworzenie nowego)</td></tr>
@@ -629,6 +723,7 @@ function renderHome() {
             <option value="blue">Niebieski</option><option value="paper">Jasny (papier)</option>
           </select></label>
         <span class="spacer"></span>
+        <button id="add-reference" title="Dodaje brakujące ściągi i zakładki podręcznika; nie rusza Twoich wpisów">Dodaj ściągi z podręcznika</button>
         <button id="load-sample">Wczytaj przykładową kampanię</button>
         <button id="wipe" class="danger">Nowa, pusta kampania</button>
       </div>
@@ -722,10 +817,28 @@ function rollExpr(expr, label = '') {
   pushLog({ label, expr: expr.replace(/d/gi, 'k'), detail: parts.join(' '), total });
   return total;
 }
-function skillTest(target, label = '') {
-  const roll = 1 + Math.floor(Math.random() * 100);
-  const ok = roll <= target;
-  pushLog({ label: label || `Test ${target}%`, expr: 'k100', total: roll, detail: `${ok ? 'SUKCES' : 'PORAŻKA'} · margines ${Math.abs(target - roll)}`, ok });
+const d100 = () => 1 + Math.floor(Math.random() * 100);
+// Test k100 wg podręcznika (str. 6–9): sukces, gdy wynik ≤ ⌊TN × MFD⌋ + modyfikator;
+// 1–5 to krytyczny sukces, 96–100 krytyczna porażka. Zwraca też najtrudniejszy osiągnięty stopień MFD
+// (potrzebny w rzutach przeciwstawnych: wygrywa ten, kto osiągnął trudniejszy stopień).
+function mfdTarget(tn, mfd, mod) { return Math.floor(tn * mfd) + mod; }
+function skillTest(tn, label = '') {
+  const mfd = parseFloat($('#skill-mfd').value) || 1;
+  const mod = num($('#skill-mod').value) || 0;
+  const roll = d100();
+  const target = mfdTarget(tn, mfd, mod);
+  const critS = roll <= 5, critF = roll >= 96;
+  const ok = critS || (!critF && roll <= target);
+  let best = null;
+  for (let i = MFD_STEPS.length - 1; i >= 0; i--) {
+    if (roll <= mfdTarget(tn, MFD_STEPS[i][1], mod)) { best = MFD_STEPS[i][0]; break; }
+  }
+  const verdict = critS ? 'KRYTYCZNY SUKCES' : critF ? 'KRYTYCZNA PORAŻKA' : ok ? 'SUKCES' : 'PORAŻKA';
+  const how = `cel ${target} = TN ${tn} × MFD ${mfdLabel(mfd)}${mod ? (mod > 0 ? ' +' : ' −') + Math.abs(mod) : ''}`;
+  pushLog({
+    label: label || `Test TN ${tn}`, expr: 'k100', total: roll, ok,
+    verdict, detail: `${how} · ${best ? 'osiągnięty MFD ' + best : 'nie osiągnięto żadnego MFD'}`,
+  });
 }
 function pushLog(r) {
   r.secret = $('#dice-secret').checked;
@@ -733,45 +846,94 @@ function pushLog(r) {
   diceLog.unshift(r);
   diceLog.length = Math.min(diceLog.length, 50);
   $('#dice-log').innerHTML = diceLog.map(x => `<li>${x.label ? `<span class="label">${esc(x.label)}</span> · ` : ''}${esc(x.expr)} = <span class="total ${x.ok === true ? 'ok' : x.ok === false ? 'fail' : ''}">${x.total}</span>
+    ${x.verdict ? `<span class="verdict ${x.ok ? 'ok' : 'fail'}">${esc(x.verdict)}</span>` : ''}
     ${x.secret ? '<span class="secret">[tajny]</span>' : ''}<div class="detail">${esc(x.detail)} · ${x.time}</div></li>`).join('');
+}
+// Podgląd progów dla wpisanego TN na każdym stopniu MFD.
+function renderMfdTable() {
+  const tn = num($('#skill-target').value);
+  const mod = num($('#skill-mod').value) || 0;
+  const box = $('#mfd-table');
+  if (tn === null) { box.innerHTML = ''; return; }
+  const cur = parseFloat($('#skill-mfd').value);
+  box.innerHTML = '<table><tr>' + MFD_STEPS.map(([l, m]) => `<th class="${m === cur ? 'cur' : ''}">${l}</th>`).join('') + '</tr><tr>' +
+    MFD_STEPS.map(([, m]) => `<td class="${m === cur ? 'cur' : ''}">${Math.max(0, mfdTarget(tn, m, mod))}</td>`).join('') + '</tr></table>';
 }
 
 // ---------- walka ----------
-function addCombatant({ name, init = 0, hp = '', entryId = null }) {
-  const hpN = hp === '' || isNaN(parseInt(hp, 10)) ? null : parseInt(hp, 10);
+// Walka wg rozdziału 7: inicjatywa k100 (niższy działa pierwszy), rany zamiast punktów życia:
+// rany = ⌊(obrażenia − DT) / obrażenia na ranę⌋; END ran w głowę/tułów zabija (str. 462–465).
+function normCombatant(c) {
+  return Object.assign({ end: null, dt: 0, dpw: 10, wounds: 0, sats: null, satsMax: null, note: '', entryId: null, init: 0 }, c);
+}
+function addCombatant({ name, init = '', end = '', dt = '', dpw = '', satsMax = '', entryId = null }) {
   const same = db.combat.list.filter(c => c.name === name || c.name.startsWith(name + ' #')).length;
-  db.combat.list.push({ id: uid(), name: same ? `${name} #${same + 1}` : name, init: parseInt(init, 10) || 0, hp: hpN, max: hpN, note: '', entryId });
+  const fullName = same ? `${name} #${same + 1}` : name;
+  let ini = num(init);
+  if (ini === null) {
+    ini = d100();
+    pushLog({ label: 'Inicjatywa ' + fullName, expr: 'k100', total: ini, detail: 'niższy działa pierwszy; gracze mogą dodać/odjąć AGI MFD ¼' });
+  }
+  const sm = num(satsMax);
+  db.combat.list.push(normCombatant({
+    id: uid(), name: fullName, init: ini, end: num(end), dt: num(dt) || 0, dpw: num(dpw) || 10,
+    sats: sm, satsMax: sm, entryId,
+  }));
   save();
   renderCombat();
 }
 function sortCombat() {
   const cur = db.combat.list[db.combat.turn];
-  db.combat.list.sort((a, b) => b.init - a.init);
+  db.combat.list.sort((a, b) => a.init - b.init);
   db.combat.turn = Math.max(0, db.combat.list.indexOf(cur));
   save(); renderCombat();
 }
+const isDown = x => x.end !== null && x.end !== undefined && x.wounds >= x.end;
 function nextTurn() {
   const L = db.combat.list;
   if (!L.length) return;
   let guard = 0;
   do {
     db.combat.turn++;
-    if (db.combat.turn >= L.length) { db.combat.turn = 0; db.combat.round++; }
-  } while (L[db.combat.turn].hp !== null && L[db.combat.turn].hp <= 0 && ++guard < L.length);
+    if (db.combat.turn >= L.length) {
+      db.combat.turn = 0;
+      db.combat.round++;
+      for (const x of L) if (x.satsMax !== null && x.satsMax !== undefined) x.sats = Math.min(x.satsMax, (x.sats ?? 0) + 5);
+    }
+  } while (isDown(L[db.combat.turn]) && ++guard < L.length);
   save(); renderCombat();
+}
+function applyDamage(c, raw) {
+  const dmg = num(raw);
+  if (dmg === null || dmg < 0) return null;
+  const after = Math.max(0, dmg - (c.dt || 0));
+  const w = Math.floor(after / (c.dpw || 10));
+  c.wounds += w;
+  return `${c.name}: ${dmg} obr.${c.dt ? ` − DT ${c.dt} = ${after}` : ''} → ${w} ${w === 1 ? 'rana' : w >= 2 && w <= 4 ? 'rany' : 'ran'}`;
 }
 function renderCombat() {
   const c = db.combat;
+  c.list = c.list.map(normCombatant);
   $('#cb-round').textContent = c.round;
   $('#cb-list').innerHTML = c.list.map((x, i) => {
-    const down = x.hp !== null && x.hp <= 0;
-    const pct = x.max ? Math.max(0, Math.min(100, (x.hp / x.max) * 100)) : 0;
+    const down = isDown(x);
+    const pct = x.end ? Math.max(0, Math.min(100, 100 - (x.wounds / x.end) * 100)) : 0;
+    let status = '';
+    if (down) status = '☠ END ran — martwy (w głowę/tułów), nieprzytomny lub okaleczony';
+    else if (x.end && x.wounds >= Math.ceil(x.end / 2)) status = '⚠ ≥ ½ END ran — jeśli w jedną lokację, jest okaleczona (−1 krok MFD)';
     return `<li data-id="${x.id}" class="${i === c.turn ? 'current' : ''}${down ? ' down' : ''}">
-      <input class="ini" value="${x.init}" title="Inicjatywa" data-f="init">
+      <input class="ini" value="${x.init}" title="Inicjatywa (k100, niższa działa pierwsza)" data-f="init">
       <div class="nm">${x.entryId && db.entries[x.entryId] ? `<a data-id="${x.entryId}">${esc(x.name)}</a>` : esc(x.name)}</div>
-      <div class="hp">${x.hp !== null ? `<b>${x.hp}</b>/${x.max}` : ''}<input placeholder="±" data-f="dmg" title="np. -7 (obrażenia) lub +5 (leczenie); bez znaku = ustaw HP"><button class="x" data-f="rm" title="Usuń">✕</button></div>
-      ${x.max ? `<div class="hpbar"><i style="width:${pct}%"></i></div>` : ''}
-      <input class="note" value="${esc(x.note)}" placeholder="stan, efekty…" data-f="note">
+      <button class="x" data-f="rm" title="Usuń">✕</button>
+      <div class="cb-row">
+        <span class="wounds" title="Rany / END">Rany <button data-f="w-" title="−1 rana">−</button><b>${x.wounds}</b>${x.end ? '/' + x.end : ''}<button data-f="w+" title="+1 rana">+</button></span>
+        <input placeholder="obr." data-f="dmg" title="Wpisz obrażenia i Enter: odejmie DT i przeliczy na rany (co ${x.dpw} obr. = 1 rana)">
+        <span class="muted" title="Próg obrażeń (DT) / obrażenia na ranę">DT ${x.dt} · ${x.dpw}/r</span>
+        ${x.satsMax ? `<span class="sats" title="SATS: wpisz np. -25 i Enter; +5 na początku każdej rundy">SATS <input value="${x.sats}" data-f="sats">/${x.satsMax}</span>` : ''}
+      </div>
+      ${x.end ? `<div class="hpbar"><i style="width:${pct}%"></i></div>` : ''}
+      ${status ? `<div class="cb-status">${status}</div>` : ''}
+      <input class="note" value="${esc(x.note)}" placeholder="stan, efekty, lokacje ran…" data-f="note">
     </li>`;
   }).join('') || '<p class="muted small">Brak uczestników walki.</p>';
 }
@@ -794,12 +956,14 @@ async function idbGet(key) {
   const d = await idb();
   return new Promise((res, rej) => { const r = d.transaction('files').objectStore('files').get(key); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 }
-function setBook(blob) {
-  if (bookUrl) URL.revokeObjectURL(bookUrl);
-  bookUrl = URL.createObjectURL(blob);
+function setBook(src) {
+  if (bookUrl && bookUrl.startsWith('blob:')) URL.revokeObjectURL(bookUrl);
+  // src to Blob (plik wczytany przez użytkownika) albo ścieżka względna do PDF obok aplikacji.
+  bookUrl = typeof src === 'string' ? src : URL.createObjectURL(src);
   $('#tab-book').classList.add('loaded');
   $('#book-frame').src = bookUrl;
 }
+const REPO_BOOK = '../' + encodeURIComponent(BOOK_FILE);
 function openBook(page) {
   showTab('book');
   if (!bookUrl) { toast('Najpierw wczytaj PDF podręcznika (zakładka Podręcznik).', 3500); return; }
@@ -883,6 +1047,26 @@ function applyUi() {
   renderBookmarks();
 }
 
+// ---------- ściągi z podręcznika ----------
+function addReference() {
+  let added = 0, marks = 0;
+  for (const r of FOE_REFERENCE) {
+    if (findByTitle(r.title)) continue;
+    const e = createEntry({ title: r.title, type: 'zasada', body: r.body });
+    e.tags = [...r.tags];
+    e.pinned = !!r.pinned;
+    added++;
+  }
+  for (const [page, label] of FOE_BOOKMARKS) {
+    if (db.bookmarks.some(b => b.page === page)) continue;
+    db.bookmarks.push({ page, label });
+    marks++;
+  }
+  db.bookmarks.sort((a, b) => a.page - b.page);
+  save(); renderBookmarks(); render();
+  toast(added || marks ? `Dodano ${added} ściąg i ${marks} zakładek podręcznika.` : 'Wszystkie ściągi już są w kampanii.');
+}
+
 // ---------- przykładowa kampania ----------
 function seed() {
   const d = emptyDb();
@@ -892,7 +1076,8 @@ function seed() {
     d.entries[e.id] = e;
     return e;
   };
-  const S = (s, p, e, c, i, a, l, hp, ap, dt, seq) => [['S', s], ['P', p], ['E', e], ['C', c], ['I', i], ['A', a], ['L', l], ['HP', hp], ['AP', ap], ['DT', dt], ['Sekwencja', seq]].map(([k, v]) => [k, String(v)]);
+  const S = (s, p, e, c, i, a, l, lvl, dt, skills = []) => [['S', s], ['P', p], ['E', e], ['C', c], ['I', i], ['A', a], ['L', l],
+    ['Poziom', lvl], ['Rana', 10], ['DT', dt], ...skills].map(([k, v]) => [k, String(v)]);
 
   const camp = mk('przygoda', 'Echa Stajni 42', `To jest **przykładowa kampania**. Pokazuje, jak łączyć wpisy. Możesz ją usunąć w ustawieniach na pulpicie („Nowa, pusta kampania”).
 
@@ -912,7 +1097,7 @@ Stajnia 42 otwiera się po raz pierwszy od dwustu lat. [[Nadzorczyni Silver Quil
 ## Klimat
 > Szare niebo, wiatr niesie popiół. Gdzieś daleko gra radio Nadziei.
 
-Zasady, które warto mieć pod ręką: [[Ściąga MG]].`, { pinned: true, tags: ['kampania'] });
+Zasady, które warto mieć pod ręką: [[Ściąga: rzuty i MFD]] · [[Ściąga: walka]] · [[Losowe spotkania (k100)]] · [[Indeks bestiariusza]].`, { pinned: true, tags: ['kampania'] });
 
   mk('przygoda', 'Sekret Stajni 42', `Wątek poboczny ukryty przed graczami.
 
@@ -941,7 +1126,7 @@ Wyprowadzić drużynę ze [[Stajnia 42|Stajni]] i pokazać, że Pustkowia są gr
 |---|---|---|
 | [[Bloatsprite]] | 3 | ucieka, gdy zostanie jeden |
 
-Szybkie rzuty: [[r:k100|Losowe spotkanie]] · [[r:2k6|Nastrój Rusty'ego]]
+Szybkie rzuty: [[r:k100|Losowe spotkanie]] (→ [[Losowe spotkania (k100)]]) · [[r:2k6|Nastrój Rusty'ego]]
 
 ## Łupy i nagrody
 - 25 kapsli, [[Pip-Buck]] dla każdego
@@ -990,7 +1175,7 @@ Utrzymać porządek w [[Stajnia 42|Stajni]] i nie dopuścić, by wyszedł na jaw
 
 ## Co wie
 - Zna część prawdy o sektorze C
-- Wie, że [[Stalowi Strażnicy]] kiedyś pukali do wrót`, { parent: stable.id, tags: ['stajnia'], stats: S(3, 6, 4, 7, 8, 4, 5, 25, 7, 0, 8) });
+- Wie, że [[Stalowi Strażnicy]] kiedyś pukali do wrót`, { parent: stable.id, tags: ['stajnia'], stats: S(3, 6, 4, 7, 8, 4, 5, 6, 0, [['Perswazja', 55], ['Nauka', 48], ['Medycyna', 30]]) });
 
   mk('npc', 'Rusty Bolt', `**Rasa:** kucyk ziemski
 **Rola:** wędrowny handlarz
@@ -1005,7 +1190,7 @@ Zarobić, przeżyć i nie wchodzić w drogę [[Łowcy niewolników z Fillydelphi
 - Plotki o znaku [[Stajnia 42|Stajni 42]] na zbroi Strażnika
 - Gdzie łowcy mają kryjówkę (za odpowiednią cenę)
 
-Atak: [[r:2k6+2|Strzelba myśliwska]]`, { tags: ['handel', 'sojusznik'], stats: S(5, 6, 6, 7, 5, 5, 7, 32, 8, 2, 11) });
+Atak: Lekka broń (kliknij ją na karcie, żeby wykonać test), obrażenia [[r:2k6+4|Strzelba myśliwska]]`, { tags: ['handel', 'sojusznik'], stats: S(5, 6, 6, 7, 5, 5, 7, 4, 3, [['Lekka broń', 40], ['Handel', 52], ['Perswazja', 35]]) });
 
   mk('frakcja', 'Stalowi Strażnicy', `Zakon kucyków w pancerzach wspomaganych, zbierający przedwojenną technologię.
 
@@ -1036,39 +1221,23 @@ Pojmać „czyste” kucyki ze Stajni — są cenne na targach.
 ## Taktyka
 Nadlatuje z góry, ucieka, gdy zostanie sam.
 
-Zasady walki: [[str:1|strona z podręcznika (ustaw właściwą)]]`, { tags: ['pustkowia'], stats: [['HP', '10'], ['AP', '6'], ['DT', '0'], ['Sekwencja', '12']] });
+Statystyki poniżej są przykładowe. Oficjalne znajdziesz w podręczniku: [[str:517|Bloatsprite, str. 517]].`, { tags: ['pustkowia'], stats: [['E', '3'], ['A', '7'], ['Rana', '10'], ['DT', '0'], ['Walka bez broni', '30']] });
 
   mk('przedmiot', 'Pip-Buck', `Naręczny komputer każdego mieszkańca Stajni: mapa, radio, licznik promieniowania, inwentarz.
 
-Szczegóły działania według podręcznika: [[str:1]] (podmień numer strony).`, { tags: ['sprzęt'] });
+Pip-Bucki i dodatki w podręczniku: [[str:151]]. SATS: [[str:441]].`, { tags: ['sprzęt'] });
 
   mk('gracz', 'Przykładowa postać gracza', `**Gracz:** Ania
 **Rasa:** pegaz
 **Znaczek:** kompas
 
 ## Wątki osobiste
-- Szuka zaginionej siostry, która wyszła ze [[Stajnia 42|Stajni]] w tajemnicy`, { stats: S(4, 7, 5, 6, 5, 8, 6, 28, 9, 0, 12) });
+- Szuka zaginionej siostry, która wyszła ze [[Stajnia 42|Stajni]] w tajemnicy`, { stats: S(4, 7, 5, 6, 5, 8, 6, 1, 0, [['Latanie', 36], ['Lekka broń', 37], ['Skradanie', 22], ['Przetrwanie', 27]]) });
 
-  mk('zasada', 'Ściąga MG', `Uzupełnij własnymi skrótami zasad z podręcznika i dodaj numery stron, aby jednym kliknięciem otwierać PDF.
-
-## Testy
-- Test umiejętności: … ([[str:1]])
-- Trudności i modyfikatory: …
-
-## Walka
-- Kolejność tur: …
-- Punkty akcji: …
-- Trafienia krytyczne: …
-
-## Przydatne tabele
-| Co | Strona |
-|---|---|
-| Rasy | [[str:1]] |
-| Umiejętności | [[str:1]] |
-| Ekwipunek | [[str:1]] |`, { pinned: true, tags: ['zasady'] });
+  for (const r of FOE_REFERENCE) mk('zasada', r.title, r.body, { tags: [...r.tags], pinned: !!r.pinned });
 
   d.notes = '';
-  d.bookmarks = [{ page: 1, label: 'Początek' }];
+  d.bookmarks = FOE_BOOKMARKS.map(([page, label]) => ({ page, label }));
   s1.viewed = now();
   return d;
 }
@@ -1124,14 +1293,28 @@ function bind() {
   main.addEventListener('click', ev => {
     const t = ev.target;
     if (t.matches('#entry-body input[type=checkbox]')) { ev.preventDefault(); toggleTask(+t.dataset.line); return; }
+    const st = t.closest('.stat.rollable');
+    if (st && view.name === 'entry' && !editing) {
+      const e = db.entries[view.id];
+      $('#skill-target').value = st.dataset.tn;
+      showTab('dice');
+      renderMfdTable();
+      skillTest(num(st.dataset.tn), `${e.title}: ${st.dataset.name}`);
+      return;
+    }
     const act = t.closest('[data-act]');
     if (act && view.name === 'entry') {
       const e = db.entries[view.id];
       switch (act.dataset.act) {
         case 'edit': editing = { id: e.id, isNew: false }; render(); $('#body-input').focus(); break;
-        case 'fight':
-          addCombatant({ name: e.title, init: stat(e, INIT_KEYS), hp: stat(e, HP_KEYS), entryId: e.id });
+        case 'fight': {
+          const a = attrValues(e.stats);
+          addCombatant({
+            name: e.title, end: a.E ?? '', dt: stat(e, DT_KEYS), dpw: stat(e, DPW_KEYS),
+            satsMax: stat(e, SATS_KEYS) || (a.A !== undefined ? 40 + 5 * a.A : ''), entryId: e.id,
+          });
           showTab('combat'); toast('Dodano do walki: ' + e.title); break;
+        }
         case 'child': askTypeThen('', type => startNew({ type, parent: e.id })); break;
         case 'pin': e.pinned = !e.pinned; save(); render(); break;
         case 'dup': {
@@ -1153,8 +1336,22 @@ function bind() {
     } else if (t.id === 'stat-add') {
       t.insertAdjacentHTML('beforebegin', statRowHtml('', ''));
       t.previousElementSibling.querySelector('.k').focus();
+    } else if (t.id === 'stat-skills') {
+      const rows = $$('.stat-row').map(r => [r.querySelector('.k').value.trim(), r.querySelector('.v').value.trim()]);
+      const a = attrValues(rows);
+      if (a.L === undefined) { toast('Najpierw uzupełnij atrybuty S.P.E.C.I.A.L. (w tym L).'); return; }
+      const have = new Set(rows.map(([k]) => skillOf(k)).filter(Boolean));
+      let added = 0;
+      for (const sk of SKILLS) {
+        if (sk[3] || have.has(sk) || a[sk[2]] === undefined) continue;
+        const rank = Math.max(5, Math.floor(2 + 2 * a[sk[2]] + a.L / 2));
+        $('#stat-add').insertAdjacentHTML('beforebegin', statRowHtml(sk[0], String(rank)));
+        added++;
+      }
+      toast(added ? `Dodano ${added} umiejętności. Rasowe (Magia, Latanie, Kopanie) dodaj ręcznie.` : 'Wszystkie umiejętności już są.');
     } else if (t.matches('.stat-row .rm')) t.closest('.stat-row').remove();
     else if (t.closest('.ac [data-i]')) acceptAC(+t.closest('.ac [data-i]').dataset.i);
+    else if (t.id === 'add-reference' || t.id === 'add-reference2') addReference();
     else if (t.id === 'load-sample') {
       if (!confirm('Wczytać przykładową kampanię? Obecne dane zostaną ZASTĄPIONE (zrób najpierw eksport, jeśli ich potrzebujesz).')) return;
       db = Object.assign(seed(), { ui: db.ui }); save(true); applyUi(); go({ name: 'home' });
@@ -1231,15 +1428,17 @@ function bind() {
   $('#dice-form').onsubmit = ev => { ev.preventDefault(); const v = $('#dice-expr').value.trim(); if (v) rollExpr(v); };
   $('#skill-form').onsubmit = ev => {
     ev.preventDefault();
-    const v = parseInt($('#skill-target').value, 10);
-    if (v > 0) skillTest(v); else toast('Podaj wartość umiejętności w %.');
+    const v = num($('#skill-target').value);
+    if (v > 0) skillTest(v); else toast('Podaj TN (wartość przy MFD 1), np. 80.');
   };
+  ['#skill-target', '#skill-mod'].forEach(sel => $(sel).addEventListener('input', renderMfdTable));
+  $('#skill-mfd').addEventListener('change', renderMfdTable);
 
   // Walka.
   $('#cb-add').onsubmit = ev => {
     ev.preventDefault();
     const f = ev.target;
-    addCombatant({ name: f.name.value.trim(), init: f.init.value, hp: f.hp.value });
+    addCombatant({ name: f.name.value.trim(), init: f.init.value, end: f.end.value, dt: f.dt.value });
     f.reset(); f.name.focus();
   };
   $('#cb-next').onclick = nextTurn;
@@ -1249,11 +1448,15 @@ function bind() {
     db.combat = { round: 1, turn: 0, list: [] }; save(); renderCombat();
   };
   $('#cb-list').addEventListener('click', ev => {
-    if (ev.target.dataset.f !== 'rm') return;
+    const f = ev.target.dataset.f;
+    if (!f || !['rm', 'w-', 'w+'].includes(f)) return;
     const id = ev.target.closest('li').dataset.id;
     const idx = db.combat.list.findIndex(x => x.id === id);
-    db.combat.list.splice(idx, 1);
-    if (db.combat.turn > idx || db.combat.turn >= db.combat.list.length) db.combat.turn = Math.max(0, db.combat.turn - 1);
+    const c = db.combat.list[idx];
+    if (f === 'rm') {
+      db.combat.list.splice(idx, 1);
+      if (db.combat.turn > idx || db.combat.turn >= db.combat.list.length) db.combat.turn = Math.max(0, db.combat.turn - 1);
+    } else c.wounds = Math.max(0, c.wounds + (f === 'w+' ? 1 : -1));
     save(); renderCombat();
   });
   $('#cb-list').addEventListener('keydown', ev => {
@@ -1262,21 +1465,25 @@ function bind() {
     const c = db.combat.list.find(x => x.id === li.dataset.id);
     const f = ev.target.dataset.f;
     if (f === 'dmg') {
-      const raw = ev.target.value.trim();
-      const n = parseInt(raw, 10);
-      if (isNaN(n)) return;
-      if (/^[+-]/.test(raw)) {
-        c.hp = (c.hp ?? 0) + n;
-        if (c.max === null) c.max = Math.max(c.hp, 0);
-      } else { c.hp = n; if (c.max === null || n > c.max) c.max = n; }
-      save(); renderCombat();
+      const msg = applyDamage(c, ev.target.value.trim().replace(/^[-+]/, ''));
+      if (msg === null) { toast('Wpisz liczbę obrażeń, np. 23.'); return; }
+      save(); renderCombat(); toast(msg, 3500);
       $(`#cb-list li[data-id="${c.id}"] [data-f="dmg"]`)?.focus();
+    } else if (f === 'sats') {
+      const raw = ev.target.value.trim();
+      const n = num(raw);
+      if (n === null) return;
+      c.sats = Math.max(0, Math.min(c.satsMax, /^[+-]/.test(raw) ? c.sats + n : n));
+      save(); renderCombat();
     } else ev.target.blur();
   });
   $('#cb-list').addEventListener('change', ev => {
     const li = ev.target.closest('li');
     const c = db.combat.list.find(x => x.id === li.dataset.id);
     if (ev.target.dataset.f === 'init') { c.init = parseInt(ev.target.value, 10) || 0; save(); }
+    if (ev.target.dataset.f === 'sats' && !/^[+-]/.test(ev.target.value.trim()) && num(ev.target.value) !== null) {
+      c.sats = Math.max(0, Math.min(c.satsMax, num(ev.target.value))); save();
+    }
     if (ev.target.dataset.f === 'note') { c.note = ev.target.value; save(); }
   });
 
@@ -1303,6 +1510,11 @@ function bind() {
     setBook(f);
     try { await idbPut('rulebook', f); toast('Podręcznik wczytany i zapamiętany.'); }
     catch (err) { console.error(err); toast('Podręcznik wczytany, ale przeglądarka nie pozwoliła go zapamiętać — przy następnym uruchomieniu wczytaj go ponownie.', 5000); }
+  };
+  $('#book-repo').onclick = () => {
+    db.ui.bookRepo = true; save();
+    setBook(REPO_BOOK);
+    toast('Otwieram PDF z folderu repozytorium. Jeśli widzisz błąd, użyj „Wczytaj PDF”.', 4000);
   };
   $('#book-go').onclick = () => { const p = parseInt($('#book-page').value, 10); if (p > 0) openBook(p); };
   $('#book-page').addEventListener('keydown', ev => { if (ev.key === 'Enter') $('#book-go').click(); });
@@ -1352,5 +1564,7 @@ function bind() {
   bind();
   applyUi();
   go({ name: 'home' });
-  idbGet('rulebook').then(b => { if (b) setBook(b); }).catch(err => console.warn('IndexedDB niedostępne:', err));
+  idbGet('rulebook')
+    .then(b => { if (b) setBook(b); else if (db.ui.bookRepo) setBook(REPO_BOOK); })
+    .catch(err => { console.warn('IndexedDB niedostępne:', err); if (db.ui.bookRepo) setBook(REPO_BOOK); });
 })();

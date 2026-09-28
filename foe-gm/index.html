@@ -52,9 +52,21 @@
         <input id="dice-expr" placeholder="np. 2k6+3, 3d10, k100" autocomplete="off">
         <button>Rzuć</button>
       </form>
-      <form id="skill-form" class="row" title="Rzut k100: sukces, jeśli wynik ≤ wartość umiejętności">
-        <input id="skill-target" type="number" min="1" max="200" placeholder="Test k100 ≤ %">
-        <button>Test</button>
+      <form id="skill-form" class="test-form" title="Test FoE: k100 ≤ ⌊TN × MFD⌋ ± modyfikator; 1–5 krytyczny sukces, 96–100 krytyczna porażka">
+        <div class="test-head">Test k100 <span class="muted small">(str. 6–9)</span></div>
+        <div class="row">
+          <input id="skill-target" type="number" min="1" max="400" placeholder="TN przy MFD 1" title="Wartość przy MFD 1: umiejętność = ranga + 5×atrybut, atrybut = ×10">
+          <select id="skill-mfd" title="Modyfikator trudności (MFD)">
+            <option value="2">MFD 2 (b. łatwe)</option><option value="1.5">MFD 1½ (łatwe)</option>
+            <option value="1" selected>MFD 1 (normalne)</option><option value="0.75">MFD ¾ (trudne)</option>
+            <option value="0.5">MFD ½ (b. trudne)</option><option value="0.25">MFD ¼ (frustrujące)</option>
+            <option value="0.1">MFD 1/10 (niezwykle trudne)</option>
+          </select>
+          <input id="skill-mod" type="number" placeholder="±" class="num" title="Premie i kary do rzutu, np. -25 za osłonę">
+          <button>Test</button>
+        </div>
+        <div id="mfd-table" class="small"></div>
+        <p class="muted small">Kliknij atrybut lub umiejętność na karcie NPC albo postaci, aby od razu wykonać test z wybranym MFD i modyfikatorem.</p>
       </form>
       <label class="check"><input type="checkbox" id="dice-secret"> rzut ukryty (oznacz jako tajny)</label>
       <ul id="dice-log"></ul>
@@ -69,11 +81,12 @@
       </div>
       <form id="cb-add" class="row">
         <input name="name" placeholder="Nazwa" required>
-        <input name="init" type="number" placeholder="Init" class="num">
-        <input name="hp" type="number" placeholder="HP" class="num">
+        <input name="init" type="number" placeholder="Init" class="num" title="Inicjatywa; puste = rzut k100">
+        <input name="end" type="number" placeholder="END" class="num" title="Wytrzymałość = liczba ran, która zabija">
+        <input name="dt" type="number" placeholder="DT" class="num" title="Próg obrażeń pancerza">
         <button title="Dodaj">+</button>
       </form>
-      <p class="muted small">W polu „±” wpisz np. <code>-7</code> i Enter, aby zadać obrażenia, lub <code>+5</code>, aby leczyć. NPC i stwory dodasz przyciskiem „⚔ Do walki” na ich karcie.</p>
+      <p class="muted small">Inicjatywa: k100, <b>niższa działa pierwsza</b> (str. 436). W polu „obr.” wpisz obrażenia i naciśnij Enter: tracker odejmie DT i przeliczy je na rany (str. 462). NPC i stwory dodasz przyciskiem „⚔ Do walki” na ich karcie, razem z END, DT i SATS.</p>
       <ol id="cb-list"></ol>
     </section>
 
@@ -89,6 +102,7 @@
     <section id="tab-book" class="tab">
       <div class="book-bar row">
         <button id="book-load" title="Wybierz plik PDF podręcznika; zostanie zapamiętany w przeglądarce">Wczytaj PDF</button>
+        <button id="book-repo" title="Użyj pliku „Fallout Equestria V1.22 [POST].pdf” leżącego w folderze nad foe-gm (tak jak w repozytorium)">PDF z repo</button>
         <input type="file" id="book-file" accept="application/pdf,.pdf" hidden>
         <input id="book-page" type="number" min="1" placeholder="str." class="num">
         <button id="book-go">Idź</button>
@@ -98,6 +112,7 @@
       <div id="book-marks"></div>
       <div id="book-empty" class="muted small">
         <p>Nie wczytano jeszcze podręcznika. Kliknij <b>Wczytaj PDF</b> i wybierz plik z dysku. Zostanie zapisany w przeglądarce, więc przy następnym uruchomieniu nie musisz go wybierać ponownie.</p>
+        <p>Jeśli pobrałeś całe repozytorium (plik <code>Fallout Equestria V1.22 [POST].pdf</code> leży obok folderu <code>foe-gm</code>), wystarczy kliknąć <b>PDF z repo</b>.</p>
         <p>We wpisach możesz linkować do stron: <code>[[str:42]]</code>.</p>
       </div>
       <iframe id="book-frame" title="Podręcznik"></iframe>
@@ -108,6 +123,7 @@
 <div id="modal" hidden></div>
 <div id="toast"></div>
 
+<script src="podrecznik.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

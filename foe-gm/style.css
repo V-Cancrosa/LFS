@@ -134,6 +134,25 @@ a.tag:hover { text-decoration: underline; }
 .stat .k { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .stat .v { font-family: var(--mono); font-size: 20px; color: var(--accent); font-weight: 700; }
 .stat.special .k { font-size: 14px; color: var(--accent2); }
+.stat .tn { font-family: var(--mono); font-size: 10.5px; color: var(--muted); }
+.stat.rollable { cursor: pointer; }
+.stat.rollable:hover { border-color: var(--accent); background: var(--bg3); }
+.statblock.skills { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); margin-top: -6px; }
+.statblock.skills .k { text-transform: none; font-size: 11.5px; }
+.statblock.skills .v { font-size: 17px; }
+.derived { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--muted); margin: -6px 0 14px; max-width: 760px; }
+.derived b { color: var(--fg); font-family: var(--mono); }
+.callout { border-color: var(--accent2); }
+.test-form { border: 1px solid var(--line); border-radius: 6px; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.test-head { font-family: var(--mono); color: var(--accent); }
+.test-form .row { flex-wrap: wrap; }
+.test-form #skill-target { flex: 1 1 110px; }
+.test-form select { min-width: 0; flex: 1 1 150px; }
+#mfd-table table { border-collapse: collapse; width: 100%; font-family: var(--mono); }
+#mfd-table th, #mfd-table td { border: 1px solid var(--line); text-align: center; padding: 1px 2px; }
+#mfd-table th { color: var(--muted); font-weight: 400; }
+#mfd-table .cur { background: var(--bg3); color: var(--accent); }
+#dice-log .verdict { font-size: 12px; font-weight: 700; margin-left: 4px; }
 
 .panel { background: var(--bg2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; margin: 18px 0; }
 .panel h3 { margin: 0 0 8px; font-family: var(--mono); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
@@ -239,9 +258,13 @@ a.wl.book, a.wl.roll { color: var(--accent2); border-color: var(--accent2); }
 #cb-list .ini { font-family: var(--mono); font-size: 18px; color: var(--accent2); text-align: center; width: 38px; background: transparent; border-color: transparent; padding: 0; }
 #cb-list .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #cb-list .nm a { color: var(--link); cursor: pointer; }
-#cb-list .hp { font-family: var(--mono); display: flex; gap: 4px; align-items: center; }
-#cb-list .hp b { color: var(--accent); }
-#cb-list .hp input { width: 52px; padding: 1px 4px; }
+#cb-list .cb-row { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; font-family: var(--mono); font-size: 12.5px; }
+#cb-list .cb-row input { width: 52px; padding: 1px 4px; }
+#cb-list .wounds b { color: var(--danger); font-size: 15px; margin: 0 2px; }
+#cb-list .wounds button { padding: 0 6px; font-size: 12px; }
+#cb-list .sats input { width: 40px; }
+#cb-list .cb-status { grid-column: 2 / 4; font-size: 12px; color: var(--accent2); }
+#cb-list li.down .cb-status { color: var(--danger); }
 #cb-list .hpbar { grid-column: 2 / 4; height: 4px; background: var(--bg3); border-radius: 2px; overflow: hidden; }
 #cb-list .hpbar i { display: block; height: 100%; background: var(--accent); }
 #cb-list .note { grid-column: 2 / 4; font-size: 12px; padding: 1px 4px; border-color: transparent; background: transparent; color: var(--muted); }
