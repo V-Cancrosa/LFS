@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FoE · Panel Mistrza Gry</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <button id="btn-back" title="Wstecz (Alt+←)">◀</button>
+  <button id="btn-fwd" title="Dalej (Alt+→)">▶</button>
+  <button id="btn-home" title="Pulpit kampanii">⌂ Pulpit</button>
+  <div class="brand">FALLOUT: EQUESTRIA <span>// PANEL MG</span></div>
+  <button id="btn-switch" class="switch" title="Szybkie przejście (Ctrl+K)">🔍 Przejdź do… <kbd>Ctrl+K</kbd></button>
+  <div class="spacer"></div>
+  <span id="save-status" class="muted"></span>
+  <button id="btn-export" title="Zapisz kopię kampanii do pliku .json">⭳ Eksport</button>
+  <button id="btn-import" title="Wczytaj kampanię z pliku .json">⭱ Import</button>
+  <input type="file" id="import-file" accept=".json,application/json" hidden>
+  <button id="btn-tools" title="Pokaż / ukryj panel narzędzi">☰ Narzędzia</button>
+</header>
+
+<div id="layout">
+  <aside id="sidebar">
+    <div class="side-actions">
+      <input id="search" type="search" placeholder="Filtruj… (np. #manehattan)">
+      <button id="btn-new" title="Nowy wpis (Ctrl+Shift+N)">+ Nowy</button>
+    </div>
+    <nav id="tree"></nav>
+  </aside>
+
+  <main id="main"></main>
+
+  <div id="divider" title="Przeciągnij, aby zmienić szerokość"></div>
+
+  <aside id="tools">
+    <div class="tabs">
+      <button data-tab="dice" class="active">🎲 Kości</button>
+      <button data-tab="combat">⚔ Walka</button>
+      <button data-tab="notes">✎ Notatki</button>
+      <button data-tab="book">📖 Podręcznik</button>
+    </div>
+
+    <section id="tab-dice" class="tab active">
+      <div class="dice-buttons">
+        <button data-die="4">k4</button><button data-die="6">k6</button><button data-die="8">k8</button>
+        <button data-die="10">k10</button><button data-die="12">k12</button><button data-die="20">k20</button>
+        <button data-die="100">k100</button>
+      </div>
+      <form id="dice-form" class="row">
+        <input id="dice-expr" placeholder="np. 2k6+3, 3d10, k100" autocomplete="off">
+        <button>Rzuć</button>
+      </form>
+      <form id="skill-form" class="row" title="Rzut k100: sukces, jeśli wynik ≤ wartość umiejętności">
+        <input id="skill-target" type="number" min="1" max="200" placeholder="Test k100 ≤ %">
+        <button>Test</button>
+      </form>
+      <label class="check"><input type="checkbox" id="dice-secret"> rzut ukryty (oznacz jako tajny)</label>
+      <ul id="dice-log"></ul>
+    </section>
+
+    <section id="tab-combat" class="tab">
+      <div class="combat-head">
+        <span>Runda <b id="cb-round">1</b></span>
+        <button id="cb-next" title="Następna tura (Ctrl+Enter)">Następny ▶</button>
+        <button id="cb-sort" title="Sortuj wg inicjatywy">⇅</button>
+        <button id="cb-reset" title="Wyczyść walkę">✕</button>
+      </div>
+      <form id="cb-add" class="row">
+        <input name="name" placeholder="Nazwa" required>
+        <input name="init" type="number" placeholder="Init" class="num">
+        <input name="hp" type="number" placeholder="HP" class="num">
+        <button title="Dodaj">+</button>
+      </form>
+      <p class="muted small">W polu „±” wpisz np. <code>-7</code> i Enter, aby zadać obrażenia, lub <code>+5</code>, aby leczyć. NPC i stwory dodasz przyciskiem „⚔ Do walki” na ich karcie.</p>
+      <ol id="cb-list"></ol>
+    </section>
+
+    <section id="tab-notes" class="tab">
+      <p class="muted small">Brudnopis na bieżącą sesję. Zapisuje się automatycznie.</p>
+      <textarea id="session-notes" placeholder="Imiona wymyślone na poczekaniu, decyzje graczy, rzeczy do sprawdzenia po sesji…"></textarea>
+      <div class="row">
+        <button id="notes-to-entry" title="Utwórz wpis typu Sesja z treścią notatek">Zapisz jako wpis sesji</button>
+        <button id="notes-clear">Wyczyść</button>
+      </div>
+    </section>
+
+    <section id="tab-book" class="tab">
+      <div class="book-bar row">
+        <button id="book-load" title="Wybierz plik PDF podręcznika; zostanie zapamiętany w przeglądarce">Wczytaj PDF</button>
+        <input type="file" id="book-file" accept="application/pdf,.pdf" hidden>
+        <input id="book-page" type="number" min="1" placeholder="str." class="num">
+        <button id="book-go">Idź</button>
+        <button id="book-mark" title="Dodaj zakładkę do bieżącej strony">★</button>
+        <button id="book-wide" title="Poszerz / zwęź panel">⇔</button>
+      </div>
+      <div id="book-marks"></div>
+      <div id="book-empty" class="muted small">
+        <p>Nie wczytano jeszcze podręcznika. Kliknij <b>Wczytaj PDF</b> i wybierz plik z dysku. Zostanie zapisany w przeglądarce, więc przy następnym uruchomieniu nie musisz go wybierać ponownie.</p>
+        <p>We wpisach możesz linkować do stron: <code>[[str:42]]</code>.</p>
+      </div>
+      <iframe id="book-frame" title="Podręcznik"></iframe>
+    </section>
+  </aside>
+</div>
+
+<div id="modal" hidden></div>
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
