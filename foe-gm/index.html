@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FoE · Panel Mistrza Gry</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <button id="btn-back" title="Wstecz (Alt+←)">◀</button>
+  <button id="btn-fwd" title="Dalej (Alt+→)">▶</button>
+  <button id="btn-home" title="Pulpit kampanii">⌂ Pulpit</button>
+  <div class="brand">FALLOUT: EQUESTRIA <span>// PANEL MG</span></div>
+  <button id="btn-switch" class="switch" title="Szybkie przejście (Ctrl+K)">🔍 Przejdź do… <kbd>Ctrl+K</kbd></button>
+  <div class="spacer"></div>
+  <span id="save-status" class="muted"></span>
+  <button id="btn-export" title="Zapisz kopię kampanii do pliku .json">⭳ Eksport</button>
+  <button id="btn-import" title="Wczytaj kampanię z pliku .json">⭱ Import</button>
+  <input type="file" id="import-file" accept=".json,application/json" hidden>
+  <button id="btn-tools" title="Pokaż / ukryj panel narzędzi">☰ Narzędzia</button>
+</header>
+
+<div id="layout">
+  <aside id="sidebar">
+    <div class="side-actions">
+      <input id="search" type="search" placeholder="Filtruj… (np. #manehattan)">
+      <button id="btn-new" title="Nowy wpis (Ctrl+Shift+N)">+ Nowy</button>
+    </div>
+    <nav id="tree"></nav>
+  </aside>
+
+  <main id="main"></main>
+
+  <div id="divider" title="Przeciągnij, aby zmienić szerokość"></div>
+
+  <aside id="tools">
+    <div class="tabs">
+      <button data-tab="dice" class="active">🎲 Kości</button>
+      <button data-tab="combat">⚔ Walka</button>
+      <button data-tab="notes">✎ Notatki</button>
+      <button data-tab="book">📖 Podręcznik</button>
+    </div>
+
+    <section id="tab-dice" class="tab active">
+      <div class="dice-buttons">
+        <button data-die="4">k4</button><button data-die="6">k6</button><button data-die="8">k8</button>
+        <button data-die="10">k10</button><button data-die="12">k12</button><button data-die="20">k20</button>
+        <button data-die="100">k100</button>
+      </div>
+      <form id="dice-form" class="row">
+        <input id="dice-expr" placeholder="np. 2k6+3, 3d10, k100" autocomplete="off">
+        <button>Rzuć</button>
+      </form>
+      <form id="skill-form" class="test-form" title="Test FoE: k100 ≤ ⌊TN × MFD⌋ ± modyfikator; 1–5 krytyczny sukces, 96–100 krytyczna porażka">
+        <div class="test-head">Test k100 <span class="muted small">(str. 6–9)</span></div>
+        <div class="row">
+          <input id="skill-target" type="number" min="1" max="400" placeholder="TN przy MFD 1" title="Wartość przy MFD 1: umiejętność = ranga + 5×atrybut, atrybut = ×10">
+          <select id="skill-mfd" title="Modyfikator trudności (MFD)">
+            <option value="2">MFD 2 (b. łatwe)</option><option value="1.5">MFD 1½ (łatwe)</option>
+            <option value="1" selected>MFD 1 (normalne)</option><option value="0.75">MFD ¾ (trudne)</option>
+            <option value="0.5">MFD ½ (b. trudne)</option><option value="0.25">MFD ¼ (frustrujące)</option>
+            <option value="0.1">MFD 1/10 (niezwykle trudne)</option>
+          </select>
+          <input id="skill-mod" type="number" placeholder="±" class="num" title="Premie i kary do rzutu, np. -25 za osłonę">
+          <button>Test</button>
+        </div>
+        <div id="mfd-table" class="small"></div>
+        <p class="muted small">Kliknij atrybut lub umiejętność na karcie NPC albo postaci, aby od razu wykonać test z wybranym MFD i modyfikatorem.</p>
+      </form>
+      <label class="check"><input type="checkbox" id="dice-secret"> rzut ukryty (oznacz jako tajny)</label>
+      <ul id="dice-log"></ul>
+    </section>
+
+    <section id="tab-combat" class="tab">
+      <div class="combat-head">
+        <span>Runda <b id="cb-round">1</b></span>
+        <button id="cb-next" title="Następna tura (Ctrl+Enter)">Następny ▶</button>
+        <button id="cb-sort" title="Sortuj wg inicjatywy">⇅</button>
+        <button id="cb-reset" title="Wyczyść walkę">✕</button>
+      </div>
+      <form id="cb-add" class="row">
+        <input name="name" placeholder="Nazwa" required>
+        <input name="init" type="number" placeholder="Init" class="num" title="Inicjatywa; puste = rzut k100">
+        <input name="end" type="number" placeholder="END" class="num" title="Wytrzymałość = liczba ran, która zabija">
+        <input name="dt" type="number" placeholder="DT" class="num" title="Próg obrażeń pancerza">
+        <button title="Dodaj">+</button>
+      </form>
+      <p class="muted small">Inicjatywa: k100, <b>niższa działa pierwsza</b> (str. 436). W polu „obr.” wpisz obrażenia i naciśnij Enter: tracker odejmie DT i przeliczy je na rany (str. 462). NPC i stwory dodasz przyciskiem „⚔ Do walki” na ich karcie, razem z END, DT i SATS.</p>
+      <ol id="cb-list"></ol>
+    </section>
+
+    <section id="tab-notes" class="tab">
+      <p class="muted small">Brudnopis na bieżącą sesję. Zapisuje się automatycznie.</p>
+      <textarea id="session-notes" placeholder="Imiona wymyślone na poczekaniu, decyzje graczy, rzeczy do sprawdzenia po sesji…"></textarea>
+      <div class="row">
+        <button id="notes-to-entry" title="Utwórz wpis typu Sesja z treścią notatek">Zapisz jako wpis sesji</button>
+        <button id="notes-clear">Wyczyść</button>
+      </div>
+    </section>
+
+    <section id="tab-book" class="tab">
+      <div class="book-bar row">
+        <button id="book-load" title="Wybierz plik PDF podręcznika; zostanie zapamiętany w przeglądarce">Wczytaj PDF</button>
+        <button id="book-repo" title="Użyj pliku „Fallout Equestria V1.22 [POST].pdf” leżącego w folderze nad foe-gm (tak jak w repozytorium)">PDF z repo</button>
+        <input type="file" id="book-file" accept="application/pdf,.pdf" hidden>
+        <input id="book-page" type="number" min="1" placeholder="str." class="num">
+        <button id="book-go">Idź</button>
+        <button id="book-mark" title="Dodaj zakładkę do bieżącej strony">★</button>
+        <button id="book-wide" title="Poszerz / zwęź panel">⇔</button>
+      </div>
+      <div id="book-marks"></div>
+      <div id="book-empty" class="muted small">
+        <p>Nie wczytano jeszcze podręcznika. Kliknij <b>Wczytaj PDF</b> i wybierz plik z dysku. Zostanie zapisany w przeglądarce, więc przy następnym uruchomieniu nie musisz go wybierać ponownie.</p>
+        <p>Jeśli pobrałeś całe repozytorium (plik <code>Fallout Equestria V1.22 [POST].pdf</code> leży obok folderu <code>foe-gm</code>), wystarczy kliknąć <b>PDF z repo</b>.</p>
+        <p>We wpisach możesz linkować do stron: <code>[[str:42]]</code>.</p>
+      </div>
+      <iframe id="book-frame" title="Podręcznik"></iframe>
+    </section>
+  </aside>
+</div>
+
+<div id="modal" hidden></div>
+<div id="toast"></div>
+
+<script src="podrecznik.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
